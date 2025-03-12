@@ -39,6 +39,11 @@ class GameState:
     is_active: bool = True
     transition_progress: float = 0
     answer_is_correct: bool = False
+    answered_incorrectly: bool = False
+    current_sfx: str = ""
+    update_sfx: bool = False
+    current_music: str = ""
+    update_music: bool = False
 
 class Ball:
     def __init__(self, bounds: Tuple[int, int], index: int, total: int, accel_factor: float = 0):
@@ -131,12 +136,19 @@ class Game:
         self.screen = pygame.display.set_mode(SCREEN_SIZE)
         pygame.display.set_caption("Number Ball Game")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont(*LARGE_FONT_SETTINGS)
+        self.normal_font = pygame.font.SysFont(*FONT_SETTINGS)
+        self.large_font = pygame.font.SysFont(*LARGE_FONT_SETTINGS)
         self.state = GameState()
         self.options: List[NumberOption] = []
         self._load_assets()
-        self._setup_temp_directory()
         self.number_options = 5
+        # self._setup_temp_directory()
+        # _setup_temp_directory(self):
+        os.makedirs("temp", exist_ok=True)
+        self.channel_sfx = pygame.mixer.Channel(0)
+        self.channel_music = pygame.mixer.Channel(1)
+        self.channel_sfx.set_volume(0.75)
+        self.channel_music.set_volume(0.25)
 
     def _get_audio(self, text: str):
         filename = f"sfx_{text.replace(" ", "_")}.mp3"
@@ -147,20 +159,9 @@ class Game:
             tts.save(f"assets/{filename}")
             return pygame.mixer.Sound(f"assets/{filename}")
 
-        # delete temp/temp.mp3
-        # try:
-        #     os.remove("temp/temp.mp3")
-        # except FileNotFoundError:
-        #     pass
-        # tts = gTTS(text=text, lang='en')
-        # tts.save("temp/temp.mp3")
-        # return pygame.mixer.Sound("temp/temp.mp3")
-
     def _load_assets(self):
         try:
             self.sounds = {
-                # "correct": pygame.mixer.Sound("assets/good.wav"),
-                # "incorrect": pygame.mixer.Sound("assets/bad.wav"),
                 "point_to": self._get_audio("point to"),
                 "1": self._get_audio("point to one ball"),
                 "2": self._get_audio("point to two balls"),
@@ -182,9 +183,6 @@ class Game:
             }
         except FileNotFoundError as e:
             raise SystemExit(f"Missing sound file: {e}")
-
-    def _setup_temp_directory(self):
-        os.makedirs("temp", exist_ok=True)
 
     def _new_round(self):
         # Set target number sequentially (1-10)
@@ -210,20 +208,12 @@ class Game:
         random.shuffle(numbers)
         self.options = [NumberOption(n) for n in numbers]
 
-    def _play_question_audio(self):
-        if self.state.target_number == 1:
-            tts = gTTS(text=f"Where is {self.state.target_number} ball?", lang='en')
-        else:
-            tts = gTTS(text=f"Where are {self.state.target_number} balls?", lang='en')
-        tts.save("temp/question.mp3")
-        pygame.mixer.Sound("temp/question.mp3").play()
-
     def _reset_round_state(self):
         self.state.feedback_text = ""
         self.state.feedback_alpha = 0
         self.state.transition_progress = 0
         self.state.answer_is_correct = False
-
+        self.state.answered_incorrectly = False
 
     def _handle_input(self):
         for event in pygame.event.get():
@@ -248,14 +238,15 @@ class Game:
         for option in self.options:
             if option.rect and option.rect.collidepoint(pos):
                 self._validate_answer(option.number)
-                if "Correct" in self.state.feedback_text:
+                # if "Correct" in self.state.feedback_text:
+                if self.state.answer_is_correct:
                     option.accel_factor = 1
                 break
 
     def _validate_answer(self, answer: int):
         if answer == self.state.target_number and not self.state.answer_is_correct:
             self.state.score += 10
-            self.state.feedback_text = "Correct! +10 points"
+            self.state.feedback_text = "Good! +10 points"
             self.sounds["good"].play()
             self.state.answer_is_correct = True
             if self.state.rounds_played < 10:
@@ -264,14 +255,14 @@ class Game:
                 self.sounds["you_did_it"].play()
                 self.state.is_active = False
                 self.state.rounds_played = 0
-                # self.state.score = 0
-            # self.state.is_active = self.state.rounds_played < 10
+            # this below starts _new_round()
             pygame.time.set_timer(pygame.USEREVENT, 1000)
 
-        if not self.state.answer_is_correct:
-            self.state.feedback_text = f"Wrong! It was {self.state.target_number}"
-            self.sounds["no_good"].play()
-            self.state.answer_is_correct = False
+        if answer != self.state.target_number:
+            if not pygame.mixer.get_busy():
+                self.state.feedback_text = f"No good!"
+                self.sounds["no_good"].play()
+                self.state.answered_incorrectly = True
 
         # Game ends after 10 rounds
     def _handle_restart_click(self, pos: Tuple[int, int]):
@@ -286,33 +277,36 @@ class Game:
         for option in self.options:
             option.update()
 
+    def _process_audio(self):
+        # place holder to trigger and process music and sound fx
+        return
+    
     def _draw_frame(self):
         self.screen.fill(COLORS["lightgray"])
         
         if self.state.is_active:
-            self._draw_active_game()
+            self._draw_options()
+            self._draw_prompt()
+            self._draw_score()
+            self._draw_feedback()
+            self._draw_transition()
         else:
-            self._draw_game_over()
+            self._draw_overlay()
+            self._draw_final_score()
+            self._restart_button_rect = self._draw_restart_button()
         
         pygame.display.flip()
-
-    def _draw_active_game(self):
-        self._draw_options()
-        self._draw_prompt()
-        self._draw_score()
-        self._draw_feedback()
-        self._draw_transition()
 
     def _draw_options(self):
         for i, option in enumerate(self.options):
             option.draw(self.screen, (100 + i * 350, 300))
 
     def _draw_prompt(self):
-        text = self.font.render(f"Find {self.state.target_number} balls", True, COLORS["black"])
+        text = self.large_font.render(f"{self.state.target_number} Balls", True, COLORS["red"])
         self.screen.blit(text, text.get_rect(center=(SCREEN_SIZE[0]//2, 100)))
 
     def _draw_score(self):
-        text = self.font.render(f"Score: {self.state.score}", True, COLORS["black"])
+        text = self.normal_font.render(f"Score: {self.state.score}", True, COLORS["white"])
         self.screen.blit(text, (20, 20))
 
     def _draw_feedback(self):
@@ -321,7 +315,7 @@ class Game:
             self._draw_text_with_background(
                 self.state.feedback_text, 
                 (SCREEN_SIZE[0]//2, y),
-                COLORS["green"] if "Correct" in self.state.feedback_text else COLORS["red"]
+                COLORS["green"] if self.state.answer_is_correct else COLORS["red"]
             )
 
     def _draw_transition(self):
@@ -331,11 +325,6 @@ class Game:
             overlay.fill((*COLORS["lightgray"][:3], alpha))
             self.screen.blit(overlay, (0, 0))
 
-    def _draw_game_over(self):
-        self._draw_overlay()
-        self._draw_final_score()
-        self._restart_button_rect = self._draw_restart_button()
-
     def _draw_overlay(self):
         overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
         radius = self._interpolate(0, math.hypot(*SCREEN_SIZE), self.state.transition_progress)
@@ -344,20 +333,20 @@ class Game:
         self.screen.blit(overlay, (0, 0))
 
     def _draw_final_score(self):
-        text = self.font.render(f"Final Score: {self.state.score}", True, COLORS["black"])
+        text = self.normal_font.render(f"Final Score: {self.state.score}", True, COLORS["white"])
         self.screen.blit(text, text.get_rect(center=(SCREEN_SIZE[0]//2, SCREEN_SIZE[1]//2)))
 
     def _draw_restart_button(self) -> pygame.Rect:
         rect = pygame.Rect(0, 0, 400, 120)
         rect.center = (SCREEN_SIZE[0]//2, SCREEN_SIZE[1]//2 + 160)
         pygame.draw.rect(self.screen, COLORS["green"], rect, border_radius=10)
-        text = self.font.render("Restart", True, COLORS["black"])
-        self.screen.blit(text, text.get_rect(center=rect.center))
+        text = self.normal_font.render("Restart", True, COLORS["black"])
+        self.screen.blit(text, text.get_rect(center=rect.center)) # type: ignore
         return rect
 
     def _draw_text_with_background(self, text: str, center: Tuple[int, int], color: Tuple[int, int, int]):
-        text_surf = self.font.render(text, True, COLORS["black"])
-        bg_rect = text_surf.get_rect().inflate(40, 20)
+        text_surf = self.normal_font.render(text, True, COLORS["black"])
+        bg_rect = text_surf.get_rect().inflate(40, 20) # type: ignore
         bg_rect.center = center
         pygame.draw.rect(self.screen, color, bg_rect, border_radius=5)
         self.screen.blit(text_surf, text_surf.get_rect(center=center))
@@ -379,6 +368,7 @@ class Game:
             self._handle_input()
             self._update_state()
             self._draw_frame()
+            self._process_audio()
             self.clock.tick(30)
 
 if __name__ == "__main__":
