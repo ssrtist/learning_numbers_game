@@ -14,9 +14,9 @@ COLORS = {
     "black": (0, 0, 0),
     "gray": (128, 128, 128),
     "lightgray": (200, 200, 200),
-    "blue": (0, 0, 255),
-    "green": (0, 255, 0),
     "red": (255, 0, 0),
+    "green": (0, 255, 0),
+    "blue": (0, 0, 255),
     "yellow": (255, 255, 0),
     "overlay": (255, 255, 255, 180)
 }
@@ -48,7 +48,8 @@ class GameState:
 class Ball:
     def __init__(self, bounds: Tuple[int, int], index: int, total: int, accel_factor: float = 0):
         self.radius = 30  # Increased ball radius
-        self.color = tuple(random.randint(0, 255) for _ in range(3))
+        # self.color = tuple(random.randint(0, 255) for _ in range(3))
+        self.color = random.choice([COLORS["red"], COLORS["green"], COLORS["blue"], COLORS["yellow"], COLORS["white"]])
         self.bounds = bounds
         self.index = index
         self.total = total
@@ -92,13 +93,14 @@ class Ball:
         self.x += self.dx * self.accel_factor
         self.y += self.dy * self.accel_factor
         
-        if self.x <= 40 or self.x >= self.bounds[0]-40:
+        if self.x <= 30 or self.x >= self.bounds[0]-90:
             self.dx *= -1
-        if self.y <= 40 or self.y >= self.bounds[1]-40:
+        if self.y <= 30 or self.y >= self.bounds[1]-90:
             self.dy *= -1
 
     def draw(self, surface: pygame.Surface):
         pygame.draw.circle(surface, self.color, (int(self.x), int(self.y)), self.radius)
+        pygame.draw.circle(surface, COLORS["black"], (int(self.x), int(self.y)), self.radius, 2)
 
 class NumberOption:
     def __init__(self, number: int):
@@ -142,13 +144,13 @@ class Game:
         self.options: List[NumberOption] = []
         self._load_assets()
         self.number_options = 5
-        # self._setup_temp_directory()
-        # _setup_temp_directory(self):
         os.makedirs("temp", exist_ok=True)
         self.channel_sfx = pygame.mixer.Channel(0)
         self.channel_music = pygame.mixer.Channel(1)
         self.channel_sfx.set_volume(0.75)
         self.channel_music.set_volume(0.25)
+        self.new_sfx = None
+        self.new_music = None
 
     def _get_audio(self, text: str):
         filename = f"sfx_{text.replace(" ", "_")}.mp3"
@@ -192,7 +194,8 @@ class Game:
             self._generate_options()
         # play question audio
         if self.state.is_active:
-            self.sounds[str(self.state.target_number)].play()
+            # self.sounds[str(self.state.target_number)].play()
+            self.new_sfx = self.sounds[str(self.state.target_number)]
         self._reset_round_state()
 
     def _generate_options(self):
@@ -237,32 +240,24 @@ class Game:
     def _handle_game_click(self, pos: Tuple[int, int]):
         for option in self.options:
             if option.rect and option.rect.collidepoint(pos):
-                self._validate_answer(option.number)
-                # if "Correct" in self.state.feedback_text:
-                if self.state.answer_is_correct:
+                if option.number == self.state.target_number and not self.state.answer_is_correct and not self.channel_sfx.get_busy():
+                    self.state.score += 10
+                    self.state.feedback_text = "Good! +10 points"
+                    self.new_sfx = self.sounds["good"]
+                    self.state.answer_is_correct = True
                     option.accel_factor = 1
-                break
-
-    def _validate_answer(self, answer: int):
-        if answer == self.state.target_number and not self.state.answer_is_correct:
-            self.state.score += 10
-            self.state.feedback_text = "Good! +10 points"
-            self.sounds["good"].play()
-            self.state.answer_is_correct = True
-            if self.state.rounds_played < 10:
-                self.state.is_active = True
-            else:
-                self.sounds["you_did_it"].play()
-                self.state.is_active = False
-                self.state.rounds_played = 0
-            # this below starts _new_round()
-            pygame.time.set_timer(pygame.USEREVENT, 1000)
-
-        if answer != self.state.target_number:
-            if not pygame.mixer.get_busy():
-                self.state.feedback_text = f"No good!"
-                self.sounds["no_good"].play()
-                self.state.answered_incorrectly = True
+                    if self.state.rounds_played < 10:
+                        self.state.is_active = True
+                    else:
+                        self.new_sfx = self.sounds["you_did_it"]
+                        self.state.is_active = False
+                        self.state.rounds_played = 0
+                    # this below starts _new_round()
+                    pygame.time.set_timer(pygame.USEREVENT, 1000)
+                elif option.number != self.state.target_number and not self.state.answer_is_correct and not self.channel_sfx.get_busy():
+                    self.state.feedback_text = f"No good!"
+                    self.new_sfx = self.sounds["no_good"]
+                    self.state.answered_incorrectly = True
 
         # Game ends after 10 rounds
     def _handle_restart_click(self, pos: Tuple[int, int]):
@@ -278,8 +273,12 @@ class Game:
             option.update()
 
     def _process_audio(self):
-        # place holder to trigger and process music and sound fx
-        return
+        if self.new_sfx:
+            self.channel_sfx.play(self.new_sfx)
+            self.new_sfx = None
+        if self.new_music:
+            self.channel_music.play(self.new_music)
+            self.new_music = None
     
     def _draw_frame(self):
         self.screen.fill(COLORS["lightgray"])
@@ -345,7 +344,7 @@ class Game:
         return rect
 
     def _draw_text_with_background(self, text: str, center: Tuple[int, int], color: Tuple[int, int, int]):
-        text_surf = self.normal_font.render(text, True, COLORS["black"])
+        text_surf = self.large_font.render(text, True, COLORS["black"])
         bg_rect = text_surf.get_rect().inflate(40, 20) # type: ignore
         bg_rect.center = center
         pygame.draw.rect(self.screen, color, bg_rect, border_radius=5)
