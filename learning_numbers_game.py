@@ -44,6 +44,10 @@ COLORS = {
     "green": (0, 255, 0),
     "blue": (0, 0, 255),
     "yellow": (255, 255, 0),
+    "darkred": (128, 0, 0),
+    "darkgreen": (0, 128, 0),
+    "darkblue": (0, 0, 128),
+    "darkgray": (64, 64, 64),
     "overlay": (255, 255, 255, 180)
 }
 NUMBERS = {
@@ -222,6 +226,10 @@ class NumberOption:
         self.normal_font = pygame.font.SysFont(*FONT_SETTINGS)
         self.large_font = pygame.font.SysFont(*LARGE_FONT_SETTINGS)
         self.extra_large_font = pygame.font.SysFont(*EXTRA_LARGE_FONT_SETTINGS)
+        self.highlight_good = False
+        self.highlight_bad = False
+        self.visible = True
+        self.visible_end_time = None
 
     def update(self):
         accel_factor = self.accel_factor
@@ -229,12 +237,31 @@ class NumberOption:
     def draw(self, surface: pygame.Surface, position: Tuple[int, int]) -> pygame.Rect:
         container = pygame.Surface((300, 300), pygame.SRCALPHA)
         
-        # Blit text
-        self.text_image = self.extra_large_font.render(str(self.number), True, COLORS["white"])
-        container.blit(self.text_image, (150 - self.text_image.get_width() // 2, 150 - self.text_image.get_height() // 2))
+        if not self.visible:
+            # return None
+            if self.visible_end_time is None:
+                self.visible_end_time = pygame.time.get_ticks()
+            self.visible_end_elapse = pygame.time.get_ticks() - self.visible_end_time
+            if self.visible_end_elapse > 1000:
+                # self.visible = True
+                return None
+            # if pygame.time.get_ticks() - self.visible_end_time > 1000:
+            #     self.visible = True
+            #     return None
+        
+        # Draw rectangle
+        if self.highlight_good:
+            pygame.draw.rect(container, COLORS["darkgreen"], (0, 0, 300, 300))
+
+        if self.highlight_bad:
+            pygame.draw.rect(container, COLORS["darkred"], (0, 0, 300, 300))
         
         # Draw border
         pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4)
+        
+        # Blit text
+        self.text_image = self.extra_large_font.render(str(self.number), True, COLORS["white"])
+        container.blit(self.text_image, (150 - self.text_image.get_width() // 2, 150 - self.text_image.get_height() // 2))
         
         # Scale and position
         scaled_size = int(300 * self.scale)
@@ -307,6 +334,7 @@ class BallOption:
         self.scale = 1.0
         self.rect: Optional[pygame.Rect] = None
         self.accel_factor = 0
+        # self.visible = True
 
     def update(self):
         for b in self.balls:
@@ -315,6 +343,9 @@ class BallOption:
 
     def draw(self, surface: pygame.Surface, position: Tuple[int, int]) -> pygame.Rect:
         container = pygame.Surface((300, 300), pygame.SRCALPHA)
+        
+        # if not self.visible:
+        #     return None
         
         # Draw balls
         for b in self.balls:
@@ -394,12 +425,7 @@ class MainGame:
             generate_speech_sound("Not right!")
         ]
 
-        # self.happy_face = pygame.image.load("assets/happy_face.png") 
-        # self.sad_face = pygame.image.load("assets/red_sad_face.png")     
-        # self.happy_face = pygame.transform.scale(self.happy_face, (200, 200))  
-        # self.sad_face = pygame.transform.scale(self.sad_face, (200, 200))      
-
-                # --- end of game variables ---
+        # --- end of game variables ---
 
         # --- Background Music ---
         self.menu_music = "assets/bgm_medium.mp3"  # Replace with your menu music file
@@ -421,19 +447,16 @@ class MainGame:
         try:
             self.sounds = {
                 "point_to": self._get_audio("point to"),
-                "1": self._get_audio("point to one"),
-                "2": self._get_audio("point to two"),
-                "3": self._get_audio("point to three"),
-                "4": self._get_audio("point to four"),
-                "5": self._get_audio("point to five"),
-                "6": self._get_audio("point to six"),
-                "7": self._get_audio("point to seven"),
-                "8": self._get_audio("point to eight"),
-                "9": self._get_audio("point to nine"),
-                "10": self._get_audio("point to ten"),
-                "ball": self._get_audio("ball"),
-                "balls": self._get_audio("balls"),
-                "number": self._get_audio("number"),
+                "1": [self._get_audio("number one"), self._get_audio("one ball")],
+                "2": [self._get_audio("number two"), self._get_audio("two balls")],
+                "3": [self._get_audio("number three"), self._get_audio("three balls")],
+                "4": [self._get_audio("number four"), self._get_audio("four balls")],
+                "5": [self._get_audio("number five"), self._get_audio("five balls")],
+                "6": [self._get_audio("number six"), self._get_audio("six balls")],
+                "7": [self._get_audio("number seven"), self._get_audio("seven balls")],
+                "8": [self._get_audio("number eight"), self._get_audio("eight balls")],
+                "9": [self._get_audio("number nine"), self._get_audio("nine balls")],
+                "10": [self._get_audio("number ten"), self._get_audio("ten balls")],
                 "good_job": self._get_audio("good job"),
                 "no_good": self._get_audio("no good"),
                 "good": self._get_audio("good"),
@@ -448,19 +471,22 @@ class MainGame:
         self.state.target_number = self.state.rounds_played
         if self.state.rounds_played % 5 == 1:
             self._generate_options()
-        # play question audio
+
+        for opt in self.options:
+            opt.highlight_bad = False
+            opt.highlight_good = False
+            
         if self.state.is_active:
+            snd_arr1 = pygame.sndarray.array(self.sounds["point_to"])
             if self.game_level == 2:
-                snd_arr1 = pygame.sndarray.array(self.sounds[str(self.state.target_number)])
-                if self.state.target_number == 1:
-                    snd_arr2 = pygame.sndarray.array(self.sounds["ball"])
-                else:
-                    snd_arr2 = pygame.sndarray.array(self.sounds["balls"])
-                combined_arr = np.concatenate((snd_arr1, snd_arr2))
-                combined_sound = pygame.sndarray.make_sound(combined_arr)
-                self.new_sfx = combined_sound
+                snd_arr2 = pygame.sndarray.array(self.sounds[str(self.state.target_number)][1])
             elif self.game_level == 1:
-                self.new_sfx = self.sounds[str(self.state.target_number)]
+                snd_arr2 = pygame.sndarray.array(self.sounds[str(self.state.target_number)][0])
+            # self.new_sfx = self.sounds[str(self.state.target_number)]
+            combined_arr = np.concatenate((snd_arr1, snd_arr2))
+            combined_sound = pygame.sndarray.make_sound(combined_arr)
+            self.new_sfx = combined_sound
+
         self._reset_round_state()
 
     def _generate_options(self):
@@ -533,12 +559,17 @@ class MainGame:
                         if self.game_level > 3:
                             self.game_level = 1
                         self.state.rounds_played = 0
+                    option.visible = False
+                    option.highlight_good = True
+
                     # this below starts _new_round()
                     pygame.time.set_timer(pygame.USEREVENT, 1000)
                 elif option.number != self.state.target_number and not self.state.answer_is_correct and not self.channel_sfx.get_busy():
                     self.state.feedback_text = f"No good!"
                     self.new_sfx = self.sounds["no_good"]
                     self.state.answered_incorrectly = True
+                    option.highlight_bad = True
+                    #
 
         # Game ends after 10 rounds
 
@@ -588,16 +619,17 @@ class MainGame:
             option.draw(self.screen, (100 + i * 350, 300))
 
     def _draw_prompt(self):
+        prompt_head = ""
         prompt_tail = ""
         if self.game_level == 2 and self.state.target_number == 1:
             prompt_tail = " ball"
         elif self.game_level == 2 and self.state.target_number > 1:
             prompt_tail = " balls"
         elif self.game_level == 1:
-            prompt_tail = ""
+            prompt_head = "number "
         else:
             prompt_tail = " number and balls"
-        text = self.extra_large_font.render(f"{NUMBERS.get(self.state.target_number)}{prompt_tail}", True, COLORS["red"])
+        text = self.extra_large_font.render(f"{prompt_head}{NUMBERS.get(self.state.target_number)}{prompt_tail}", True, COLORS["red"])
         self.screen.blit(text, text.get_rect(center=(SCREEN_SIZE[0]//2, 100)))
 
     def _draw_score(self):
