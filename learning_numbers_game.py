@@ -46,6 +46,18 @@ COLORS = {
     "yellow": (255, 255, 0),
     "overlay": (255, 255, 255, 180)
 }
+NUMBERS = {
+    1: "one",
+    2: "two",
+    3: "three",
+    4: "four",
+    5: "five",
+    6: "six",
+    7: "seven",
+    8: "eight",
+    9: "nine",
+    10: "ten"
+}
 FONT_SETTINGS = ("arial", 36)
 LARGE_FONT_SETTINGS = ("arial", 84)
 EXTRA_LARGE_FONT_SETTINGS = ("arial", 120)
@@ -363,8 +375,7 @@ class MainGame:
         self.new_music = None
 
         self.well_done_sound = generate_speech_sound("You did it! Good job!")
-        # self.click_sound = pygame.mixer.Sound("assets/mouse_click.wav")
-        self.click_sound = generate_speech_sound("tap!")
+        self.click_sound = pygame.mixer.Sound("assets/mouse_click.mp3")
         self.right_sounds = [
             generate_speech_sound("Awesome!"),
             generate_speech_sound("Excellent!"),
@@ -433,14 +444,12 @@ class MainGame:
 
     def _new_round(self):
         # Set target number sequentially (1-10)
-        self.state.target_number = self.state.rounds_played + 1
         self.state.rounds_played += 1
+        self.state.target_number = self.state.rounds_played
         if self.state.rounds_played % 5 == 1:
             self._generate_options()
         # play question audio
         if self.state.is_active:
-            # self.sounds[str(self.state.target_number)].play()
-            # self.new_sfx = self.sounds[str(self.state.target_number)]
             if self.game_level == 2:
                 snd_arr1 = pygame.sndarray.array(self.sounds[str(self.state.target_number)])
                 if self.state.target_number == 1:
@@ -495,6 +504,7 @@ class MainGame:
                 pos = event.pos
                 if self.state.is_active:
                     if self.numbers_back_button.is_clicked(pos):
+                        self.state = GameState()
                         self.game_mode = "menu"
                     self._handle_game_click(pos)
                 else:
@@ -578,17 +588,16 @@ class MainGame:
             option.draw(self.screen, (100 + i * 350, 300))
 
     def _draw_prompt(self):
-        prompt_head = ""
         prompt_tail = ""
         if self.game_level == 2 and self.state.target_number == 1:
-            prompt_tail = " Ball"
+            prompt_tail = " ball"
         elif self.game_level == 2 and self.state.target_number > 1:
-            prompt_tail = " Balls"
+            prompt_tail = " balls"
         elif self.game_level == 1:
             prompt_tail = ""
         else:
-            prompt_tail = " Number and Balls"
-        text = self.extra_large_font.render(f"{self.state.target_number}{prompt_tail}", True, COLORS["red"])
+            prompt_tail = " number and balls"
+        text = self.extra_large_font.render(f"{NUMBERS.get(self.state.target_number)}{prompt_tail}", True, COLORS["red"])
         self.screen.blit(text, text.get_rect(center=(SCREEN_SIZE[0]//2, 100)))
 
     def _draw_score(self):
