@@ -1,40 +1,19 @@
 """ This is a beginner's game for learning numbers """
 
-# --- import modules ---
 import os
-import json
 import io
 import pygame
 import random
 import math
 import numpy as np
 from typing import Optional, Tuple
-from dataclasses import dataclass
 from gtts import gTTS
 
 # --- Global Constants and Configuration ---
-CONFIG_FILE_PATH = "game_config.json"
 SCREEN_SIZE = (1920, 1080)
 FULLSCREEN_RESOLUTION = (1920, 1080)
 WINDOWED_RESOLUTION = (1024, 768)
 MAX_LEVEL = 2
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-YELLOW = (255, 255, 0)
-DARK_RED = "darkred"
-DARK_GREEN = "darkgreen"
-DARK_BLUE = "darkblue"
-DARK_GRAY = "darkgray"
-LIGHT_GRAY = (220, 220, 220)
-LIGHT_YELLOW = (255, 255, 200)
-BOX_BG_COLOR = LIGHT_GRAY
-PROMPT_BOX_COLOR =  BOX_BG_COLOR
-HIGHLIGHT_COLOR = YELLOW
-TEXT_COLOR = BLACK
-TEXT_BOX_COLOR = WHITE
 COLORS = {
     "white": (255, 255, 255),
     "black": (0, 0, 0),
@@ -48,41 +27,17 @@ COLORS = {
     "darkgreen": (0, 128, 0),
     "darkblue": (0, 0, 128),
     "darkgray": (64, 64, 64),
-    "overlay": (255, 255, 255, 180)
+    "overlay": (255, 255, 255, 180),
+    "lightyellow": (255, 255, 200)
 }
-NUMBERS = {
-    1: "one",
-    2: "two",
-    3: "three",
-    4: "four",
-    5: "five",
-    6: "six",
-    7: "seven",
-    8: "eight",
-    9: "nine",
-    10: "ten"
-}
+BALL_COLORS = [COLORS["red"], COLORS["green"], COLORS["blue"], COLORS["yellow"], COLORS["white"], COLORS["lightyellow"], COLORS["darkred"], COLORS["darkgreen"], COLORS["darkblue"], COLORS["darkgray"]]
+NUMBERS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
 FONT_SETTINGS = ("arial", 36)
 LARGE_FONT_SETTINGS = ("arial", 84)
 EXTRA_LARGE_FONT_SETTINGS = ("arial", 120)
-ANIMATION = {
-    "hover_scale": 1.2,
-    "ball_speed": 1.5,
-    "transition_speed": 2.0,
-    "feedback_speed": 5.0
-}
+ANIMATION = {"hover_scale": 1.2, "ball_speed": 1.5, "transition_speed": 2.0, "feedback_speed": 5.0}
 
 # --- Helper Functions ---
-def load_config():
-    """Loads configuration from JSON file or uses default values."""
-    try:
-        with open(CONFIG_FILE_PATH, "r") as config_file:
-            config = json.load(config_file)
-    except Exception as e:
-        print(f"Error loading configuration. Using default lists. {e}")
-        config = {}
-    return config
-
 def toggle_fullscreen(screen, screen_width, screen_height, fullscreen):
     """Toggles between fullscreen and windowed mode."""
     is_fullscreen = screen.get_flags() & pygame.FULLSCREEN
@@ -93,15 +48,6 @@ def toggle_fullscreen(screen, screen_width, screen_height, fullscreen):
     fullscreen = not is_fullscreen
     return fullscreen, screen
 
-def load_sound(filepath):
-    """Loads a sound file and handles potential errors."""
-    try:
-        sound = pygame.mixer.Sound(filepath)
-        return sound
-    except pygame.error as e:
-        print(f"Error loading sound: {e}")
-        return None
-
 def generate_speech_sound(text):
     """Generates and returns a Pygame sound object from text using gTTS."""
     buffer = io.BytesIO()
@@ -111,83 +57,15 @@ def generate_speech_sound(text):
     sound = pygame.mixer.Sound(buffer)
     return sound
 
-def generate_speech_sound2(filepath, text):
-    # generate only once
-    if os.path.exists(filepath):
-        print(f"Loading from sound file \"{filepath}\"...")
-        try:
-            sound = pygame.mixer.Sound(filepath)
-            return sound
-        except pygame.error as e:
-            print(f"Error loading sound: {e}")
-            return None
-    else:
-        print(f"Sound file, {filepath} doesn't exists, generating...")
-        tts = gTTS(text=text, lang='en')
-        tts.save(filepath)
-        pygame.time.wait(500)
-        sound = pygame.mixer.Sound(filepath)
-        return sound
-
-def render_text_wrapped(text, font, color, max_width):
-    """Renders text wrapped to a given width."""
-    words = text.split(' ')
-    lines = []
-    current_line = []
-
-    for word in words:
-        test_line = ' '.join(current_line + [word])
-        test_width, _ = font.size(test_line)
-        if test_width <= max_width:
-            current_line.append(word)
-        else:
-            lines.append(' '.join(current_line))
-            current_line = [word]
-    lines.append(' '.join(current_line))
-
-    surfaces = []
-    total_height = 0
-    for line in lines:
-        line_surface = font.render(line, True, color)
-        surfaces.append(line_surface)
-        total_height += line_surface.get_height() + 5
-
-    combined_surface = pygame.Surface((max_width, total_height), pygame.SRCALPHA)
-    y = 0
-    for line_surface in surfaces:
-        combined_surface.blit(line_surface, (0, y))
-        y += line_surface.get_height() + 5
-
-    return combined_surface
-
-class Styled_Text_Box:
-    def __init__(self, surface, rect, text_surface, bg_color, padding=15, border_width=2, border_color=BLACK):
-        self.surface = surface
-        self.rect = rect
-        self.bg_color = bg_color
-        self.border_width = border_width
-        self.border_color = border_color
-        self.text_surface = text_surface
-        self.padding = padding
-
-    def draw(self):
-        pygame.draw.rect(self.surface, self.bg_color, self.rect) # Background
-        pygame.draw.rect(self.surface, self.border_color, self.rect, self.border_width) # Border
-        text_rect = self.text_surface.get_rect(topleft=(self.rect.x + self.padding, self.rect.y + self.padding)) # Position text with padding
-        self.surface.blit(self.text_surface, text_rect)
-
-    def is_clicked(self, pos):
-        return self.rect.collidepoint(pos)
-
 class Button:
     """Button UI element."""
-    def __init__(self, x, y, text, width=200, height=50, color=DARK_GREEN):
+    def __init__(self, x, y, text, width=200, height=50, color=COLORS["darkgreen"]):
         self.width = width
         self.height = height
         self.x = x
         self.y = y
         self.color = color
-        self.text_color = WHITE
+        self.text_color = COLORS["white"]
         self.text = text
         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
 
@@ -200,7 +78,6 @@ class Button:
     def is_clicked(self, pos):
         return self.rect.collidepoint(pos)
 
-# @dataclass
 class GameState:
     score: int = 0
     rounds_played: int = 0
@@ -251,13 +128,13 @@ class NumberOption:
         
         # Draw rectangle
         if self.highlight_good:
-            pygame.draw.rect(container, COLORS["darkgreen"], (0, 0, 300, 300))
+            pygame.draw.rect(container, COLORS["darkgreen"], (0, 0, 300, 300), border_radius=10)
 
         if self.highlight_bad:
-            pygame.draw.rect(container, COLORS["darkred"], (0, 0, 300, 300))
+            pygame.draw.rect(container, COLORS["darkred"], (0, 0, 300, 300), border_radius=10)
         
         # Draw border
-        pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4)
+        pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4, border_radius=10)
         
         # Blit text
         self.text_image = self.extra_large_font.render(str(self.number), True, COLORS["white"])
@@ -272,9 +149,10 @@ class NumberOption:
 
 class Ball:
     def __init__(self, bounds: Tuple[int, int], index: int, total: int, accel_factor: float = 0):
-        self.radius = 30  # Increased ball radius
-        # self.color = tuple(random.randint(0, 255) for _ in range(3))
-        self.color = random.choice([COLORS["red"], COLORS["green"], COLORS["blue"], COLORS["yellow"], COLORS["white"]])
+        self.radius = 30
+        # self.color = random.choice([COLORS["red"], COLORS["green"], COLORS["blue"], COLORS["yellow"], COLORS["white"], COLORS["lightyellow"], COLORS["darkred"], COLORS["darkgreen"], COLORS["darkblue"], COLORS["darkgray"]])
+        # self.color = BALL_COLORS[index]
+        self.color = COLORS["lightyellow"]
         self.bounds = bounds
         self.index = index
         self.total = total
@@ -282,29 +160,16 @@ class Ball:
         self.accel_factor = accel_factor
 
     def _reset_position(self):
-        i = self.index
-        n = self.total
-        # Calculate row and position for pyramid
-        r = int((math.sqrt(8 * i + 1) - 1) // 2)
-        p = i - (r * (r + 1)) // 2
+        # Bottom-up, left-aligned, max 5 per row
+        row = self.index // 3  # Determine row (0 = bottom)
+        pos_in_row = self.index % 3  # Position in row (0-4)
 
-        # Calculate maximum row to determine top_y
-        last_i = n - 1
-        r_max = (math.sqrt(8 * last_i + 1) - 1) // 2
-        number_of_rows = r_max + 1
-
-        spacing = 60  # Spacing between ball centers
-        top_y = (self.bounds[1] - (number_of_rows * spacing)) // 2
-
-        # Calculate balls_in_row for this row
-        balls_in_row = min(r + 1, n - (r * (r + 1) // 2))
-
-        # Calculate x and y
-        center_x = self.bounds[0] // 2
-        start_x = center_x - ((balls_in_row - 1) * spacing) // 2
-        x = start_x + p * spacing
-        y = top_y + r * spacing
-
+        # X position: left-aligned with spacing
+        x = 90 + pos_in_row * 60  # 30=radius, 60=diameter (spacing=0)
+        
+        # Y position: start from bottom (270 = 300 - radius)
+        y = 230 - row * 60  # 60=diameter (no vertical spacing)
+        
         self.x = x
         self.y = y
 
@@ -334,7 +199,6 @@ class BallOption:
         self.scale = 1.0
         self.rect: Optional[pygame.Rect] = None
         self.accel_factor = 0
-        # self.visible = True
 
     def update(self):
         for b in self.balls:
@@ -344,15 +208,12 @@ class BallOption:
     def draw(self, surface: pygame.Surface, position: Tuple[int, int]) -> pygame.Rect:
         container = pygame.Surface((300, 300), pygame.SRCALPHA)
         
-        # if not self.visible:
-        #     return None
-        
         # Draw balls
         for b in self.balls:
             b.draw(container)
         
         # Draw border
-        pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4)
+        pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4, border_radius=10)
         
         # Scale and position
         scaled_size = int(300 * self.scale)
@@ -395,6 +256,7 @@ class MainGame:
         self.extra_large_font = pygame.font.SysFont(*EXTRA_LARGE_FONT_SETTINGS)
         self.state = GameState()
         self.game_level = 1
+        self.max_game_level = MAX_LEVEL
         self._load_assets()
         self.number_options = 5
         os.makedirs("temp", exist_ok=True)
@@ -405,32 +267,14 @@ class MainGame:
         self.new_sfx = None
         self.new_music = None
 
-        self.well_done_sound = generate_speech_sound("You did it! Good job!")
         self.click_sound = pygame.mixer.Sound("assets/mouse_click.mp3")
-        self.right_sounds = [
-            generate_speech_sound("Awesome!"),
-            generate_speech_sound("Excellent!"),
-            generate_speech_sound("Good!"),
-            generate_speech_sound("Great!"),
-            generate_speech_sound("Right!"),
-            generate_speech_sound("Very good!"),
-            generate_speech_sound("Yes!")
-            ]
-        self.wrong_sounds = [
-            generate_speech_sound("Bad!"),
-            generate_speech_sound("No!"),
-            generate_speech_sound("Not good!"),
-            generate_speech_sound("Wrong!"),
-            generate_speech_sound("No good!"),
-            generate_speech_sound("Not right!")
-        ]
 
         # --- end of game variables ---
 
         # --- Background Music ---
-        self.menu_music = "assets/bgm_medium.mp3"  # Replace with your menu music file
-        self.options_music = "assets/bgm_medium.mp3" # Replace with your option music
-        self.colors_music = "assets/bgm_strong.mp3"  # Replace with your colors music file
+        self.menu_music = "assets/bgm_medium.mp3" 
+        self.options_music = "assets/bgm_medium.mp3" 
+        self.colors_music = "assets/bgm_strong.mp3" 
         self.current_music = None
         self.play_music(self.menu_music)
 
@@ -482,7 +326,6 @@ class MainGame:
                 snd_arr2 = pygame.sndarray.array(self.sounds[str(self.state.target_number)][1])
             elif self.game_level == 1:
                 snd_arr2 = pygame.sndarray.array(self.sounds[str(self.state.target_number)][0])
-            # self.new_sfx = self.sounds[str(self.state.target_number)]
             combined_arr = np.concatenate((snd_arr1, snd_arr2))
             combined_sound = pygame.sndarray.make_sound(combined_arr)
             self.new_sfx = combined_sound
@@ -503,8 +346,6 @@ class MainGame:
         if self.game_level == 1:
             self.options = [NumberOption(n) for n in numbers]
         elif self.game_level == 2:
-            self.options = [BallOption(n) for n in numbers]
-        elif self.game_level == 3:
             self.options = [BallOption(n) for n in numbers]
 
     def _reset_round_state(self):
@@ -535,7 +376,6 @@ class MainGame:
                     self._handle_game_click(pos)
                 else:
                     self._handle_restart_click(pos)
-                # self._process_click(pygame.mouse.get_pos())
             
             if event.type == pygame.USEREVENT:
                 self._new_round()
@@ -556,7 +396,7 @@ class MainGame:
                         self.new_sfx = self.sounds["you_did_it"]
                         self.state.is_active = False
                         self.game_level += 1
-                        if self.game_level > 3:
+                        if self.game_level > self.max_game_level:
                             self.game_level = 1
                         self.state.rounds_played = 0
                     option.visible = False
@@ -630,6 +470,7 @@ class MainGame:
         else:
             prompt_tail = " number and balls"
         text = self.extra_large_font.render(f"{prompt_head}{NUMBERS.get(self.state.target_number)}{prompt_tail}", True, COLORS["red"])
+        pygame.draw.rect(self.screen, COLORS["darkgray"], text.get_rect(center=(SCREEN_SIZE[0]//2, 100)).inflate(60, 0), border_radius=10)
         self.screen.blit(text, text.get_rect(center=(SCREEN_SIZE[0]//2, 100)))
 
     def _draw_score(self):
@@ -716,69 +557,24 @@ class MainGame:
         self.play_music(self.options_music)
 
         # Prompt text lower left corner
-        prompt_text = self.text_font.render("Hint: Adjust the goal of the game.", True, WHITE)
+        prompt_text = self.text_font.render("Hint: Adjust the goal of the game.", True, COLORS["white"])
         prompt_rect = prompt_text.get_rect(bottomleft=(20, self.screen_height - 20))
-        options_back_button = Button(self.screen_width - 200 - 20, 20, "Back", 200, 50, DARK_RED)
+        options_back_button = Button(self.screen_width - 200 - 20, 20, "Back", 200, 50, COLORS["darkred"])
 
         # --- Start of game mode init section ---
-
-        ok_button = Button(self.screen_width // 2 - 100, self.screen_height * 4 // 5, "OK", 200, 50, "darkgreen")
-        opt_rect = {}
-        force_opt_rect = {}
-        opt_size = 50
-        i = 0
-        for acolor in self.COLOR_NAMES:
-            opt_rect[acolor] = pygame.Rect((self.screen_width - opt_size * 1.25 * len(self.COLOR_NAMES)) // 2 + (i * opt_size * 1.25), self.screen_height * 2 // 5, opt_size, opt_size)
-            force_opt_rect[acolor] = pygame.Rect((self.screen_width - opt_size * 1.25 * len(self.COLOR_NAMES)) // 2 + (i * opt_size * 1.25), self.screen_height * 3 // 5, opt_size, opt_size)
-            i += 1
 
         # --- End of game mode init section ---
 
         while self.game_mode == "options" and self.running:
             self.clock.tick(60)
-            self.screen.fill(DARK_GRAY)
+            self.screen.fill(COLORS["lightgray"])
+
+            # --- Start of frame creation ---
+
             self.screen.blit(prompt_text, prompt_rect)
             options_back_button.draw(self.screen, self.button_font)
 
             # --- Start of frame creation ---
-
-            # Section 0: Options title
-            title_text = self.normal_font.render("Options", True, (0, 0, 0))
-            self.screen.blit(title_text, (self.screen_width // 2 - title_text.get_width() // 2, 50))
-
-            # Section 1. Option for number of choices
-            num_choices_prompt_text = self.button_font.render(f"Number of choices: ", True, "white")
-            self.screen.blit(num_choices_prompt_text, (self.screen_width // 2 - num_choices_prompt_text.get_width() // 2, self.screen_height * 1 // 5 - 50))
-            num_choices_text = self.button_font.render(f"{self.num_choices}", True, "darkred")
-            self.screen.blit(num_choices_text, (self.screen_width // 2 - num_choices_text.get_width() // 2, self.screen_height * 1 // 5 + 10))
-
-            # Draw "+" button
-            plus_button = Button(self.screen_width // 2 - 25 + 50, self.screen_height * 1 // 5, "+", 50, 50, "darkred")
-            plus_button.draw(self.screen, self.button_font)
-            # Draw "-" button
-            minus_button = Button(self.screen_width // 2 - 25 - 50, self.screen_height * 1 // 5, "-", 50, 50, "darkred")
-            minus_button.draw(self.screen, self.button_font)
-
-            # Section 2. Option for available colors
-            available_choices_text = self.button_font.render("Available choices: ", True, "white")
-            self.screen.blit(available_choices_text, (self.screen_width // 2 - available_choices_text.get_width() // 2, self.screen_height * 2 // 5 - 50))
-            # Draw option checkboxes
-            for acolor in self.COLOR_NAMES:
-                pygame.draw.rect(self.screen, acolor, opt_rect[acolor], 4)
-                if self.color_items[acolor]["toggle"]:
-                    # draw smaller box
-                    pygame.draw.rect(self.screen, acolor, opt_rect[acolor].inflate(-10, -10))
-                pygame.draw.rect(self.screen, acolor, force_opt_rect[acolor], 4)
-                if self.force_correct_color == acolor:
-                    # draw smaller box
-                    pygame.draw.rect(self.screen, acolor, force_opt_rect[acolor].inflate(-10, -10))
-
-            # Section 3: Option to force only 1 possible right color
-            only_choice_text = self.button_font.render("Force choice: ", True, "white")
-            self.screen.blit(only_choice_text, (self.screen_width // 2 - only_choice_text.get_width() // 2, self.screen_height * 3 // 5 - 50))
-
-            # Section 4: Draw "OK" button
-            ok_button.draw(self.screen, self.button_font)
 
             # --- End of frame creation ---
 
@@ -799,70 +595,26 @@ class MainGame:
                     if options_back_button.is_clicked(event.pos):
                         self.click_sound.play()
                         self.game_mode = "menu"
-                    if ok_button.rect.collidepoint(x, y):
-                        # Return to the title screen
-                        self.click_sound.play()
-                        self.game_mode = "colors"
-                        # return
-                    if plus_button.rect.collidepoint(x, y):
-                        # Increase the number of choices
-                        self.click_sound.play()
-                        self.num_choices = min(self.num_choices + 1, self.max_num_choices)
-                    if minus_button.rect.collidepoint(x, y):
-                        # Decrease the number of choices
-                        self.click_sound.play()
-                        self.num_choices = max(self.num_choices - 1, self.min_num_choices)
-                    for acolor in self.COLOR_NAMES:
-                        if opt_rect[acolor].collidepoint(x, y):
-                            self.click_sound.play()
-                            self.color_items[acolor]["toggle"] = not self.color_items[acolor]["toggle"]
-                            num_available_colors = sum(1 for item in self.color_items.values() if item["toggle"])
-                            if num_available_colors < self.num_choices:
-                                self.color_items[acolor]["toggle"] = not self.color_items[acolor]["toggle"]
-                            if not self.color_items[acolor]["toggle"] and self.force_correct_color == acolor:
-                                self.force_correct_color = None
-                        if force_opt_rect[acolor].collidepoint(x, y):
-                            self.click_sound.play()
-                            if self.force_correct_color == acolor:
-                                self.force_correct_color = None
-                            elif self.color_items[acolor]["toggle"]:
-                                self.force_correct_color = acolor
 
     def run_numbers(self):
         """Handles the words mode loop."""
         self.play_music(self.colors_music)
         
         # Back button upper right corner
-        self.numbers_back_button = Button(self.screen_width - 200 - 20, 20, "Back", 200, 50, DARK_RED)
+        self.numbers_back_button = Button(self.screen_width - 200 - 20, 20, "Back", 200, 50, COLORS["darkred"])
 
-        # Prompt text lower left corner
-        self.prompt_text = self.text_font.render("Hint: do this and that...", True, WHITE)
+        # Prompt text lower left corner        
+        self.prompt_text = self.text_font.render("Hint: do this and that...", True, COLORS["white"])
         self.prompt_rect = self.prompt_text.get_rect(bottomleft=(20, self.screen_height - 20))
 
         # --- Start of game mode init section ---
-
-        # new game variables
-        question_num = 0
-        real_score = 0
-        target_question_num = 10
-        wrong_answer = False
-        round_over = False
-        new_question = True
-        result = None
-        show_next_button = False
-        highlight_x, highlight_y = 0, 0
-
-        # Button definitions
-        next_button = Button(self.screen_width - 200 - 20, self.screen_height - 50 - 20, "Next", 200, 50)
-        new_game_button = Button(self.screen_width // 2 - 200 - 10, self.screen_height // 2 + 50, "New Game", 200, 50)
-        exit_game_button = Button(self.screen_width // 2 + 10, self.screen_height // 2 + 50, "Exit Game", 200, 50, "darkred")
 
         # --- End of game mode init section ---
 
         self._new_round()
         while (self.game_mode == "numbers" or self.game_mode == "balls") and self.running:
             self.clock.tick(60)
-            self.screen.fill(DARK_GRAY)
+            self.screen.fill(COLORS["lightgray"])
 
             # --- Start of frame creation ---
 
@@ -879,11 +631,11 @@ class MainGame:
         self.play_music(self.menu_music)
 
         # Title text top center
-        title_text = self.title_font.render("The Learning Numbers Game", True, DARK_BLUE)
+        title_text = self.title_font.render("The Learning Numbers Game", True, COLORS["darkblue"])
         title_rect = title_text.get_rect(center=(self.screen_width // 2, self.screen_height // 8))
 
         # Prompt text lower left corner
-        prompt_text = self.text_font.render("Hint: Tap or click on a button to start.", True, WHITE)
+        prompt_text = self.text_font.render("Hint: Tap or click on a button to start.", True, COLORS["white"])        
         prompt_rect = prompt_text.get_rect(bottomleft=(20, self.screen_height - 20))
 
         # Arrange buttons in a vertical stack centered on screen
@@ -894,17 +646,17 @@ class MainGame:
         start_y = self.screen_height // 2 - total_height // 2
         center_x = self.screen_width // 2 - button_width // 2
 
-        menu_numbers_button = Button(center_x, start_y, "Numbers", button_width, button_height, DARK_GREEN)
-        menu_balls_button = Button(center_x, start_y + (button_height + spacing), "Balls", button_width, button_height, DARK_GREEN)
-        menu_quit_button = Button(center_x, start_y + (button_height + spacing) * 2, "Quit", button_width, button_height, DARK_RED)
+        menu_numbers_button = Button(center_x, start_y, "Numbers", button_width, button_height, COLORS["darkgreen"])
+        menu_balls_button = Button(center_x, start_y + (button_height + spacing), "Balls", button_width, button_height, COLORS["darkgreen"])
+        menu_quit_button = Button(center_x, start_y + (button_height + spacing) * 2, "Quit", button_width, button_height, COLORS["darkred"])
 
         play_menu_sound = False
         while self.game_mode == "menu" and self.running:
             self.clock.tick(60)
-            self.screen.fill(DARK_GRAY)
+            self.screen.fill(COLORS["lightgray"])
 
             # Draw title and prompt at the top
-            pygame.draw.rect(self.screen, LIGHT_YELLOW, title_rect.inflate(20, 10))
+            pygame.draw.rect(self.screen, COLORS["lightyellow"], title_rect.inflate(20, 10))
             self.screen.blit(title_text, title_rect)
             self.screen.blit(prompt_text, prompt_rect)
 
