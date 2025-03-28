@@ -35,7 +35,7 @@ NUMBERS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "s
 FONT_SETTINGS = ("arial", 36)
 LARGE_FONT_SETTINGS = ("arial", 84)
 EXTRA_LARGE_FONT_SETTINGS = ("arial", 120)
-ANIMATION = {"hover_scale": 1.2, "ball_speed": 1.5, "transition_speed": 2.0, "feedback_speed": 5.0}
+ANIMATION = {"hover_scale": 1.2, "ball_speed": 3, "transition_speed": 2.0, "feedback_speed": 5.0}
 
 # --- Helper Functions ---
 def toggle_fullscreen(screen, screen_width, screen_height, fullscreen):
@@ -120,11 +120,7 @@ class NumberOption:
                 self.visible_end_time = pygame.time.get_ticks()
             self.visible_end_elapse = pygame.time.get_ticks() - self.visible_end_time
             if self.visible_end_elapse > 1000:
-                # self.visible = True
                 return None
-            # if pygame.time.get_ticks() - self.visible_end_time > 1000:
-            #     self.visible = True
-            #     return None
         
         # Draw rectangle
         if self.highlight_good:
@@ -165,10 +161,10 @@ class Ball:
         pos_in_row = self.index % 3  # Position in row (0-4)
 
         # X position: left-aligned with spacing
-        x = 90 + pos_in_row * 60  # 30=radius, 60=diameter (spacing=0)
+        x = 90 + pos_in_row * 65  # 30=radius, 60=diameter (spacing=5)
         
         # Y position: start from bottom (270 = 300 - radius)
-        y = 230 - row * 60  # 60=diameter (no vertical spacing)
+        y = 240 - row * 65  # 60=diameter (5 vertical spacing)
         
         self.x = x
         self.y = y
@@ -199,6 +195,8 @@ class BallOption:
         self.scale = 1.0
         self.rect: Optional[pygame.Rect] = None
         self.accel_factor = 0
+        self.visible = True
+        self.visible_end_time = None
 
     def update(self):
         for b in self.balls:
@@ -208,6 +206,24 @@ class BallOption:
     def draw(self, surface: pygame.Surface, position: Tuple[int, int]) -> pygame.Rect:
         container = pygame.Surface((300, 300), pygame.SRCALPHA)
         
+        if not self.visible:
+            # return None
+            if self.visible_end_time is None:
+                self.visible_end_time = pygame.time.get_ticks()
+            self.visible_end_elapse = pygame.time.get_ticks() - self.visible_end_time
+            if self.visible_end_elapse > 1000:
+                return None
+        
+        # Draw rectangle
+        if self.highlight_good:
+            pygame.draw.rect(container, COLORS["darkgreen"], (0, 0, 300, 300), border_radius=10)
+
+        if self.highlight_bad:
+            pygame.draw.rect(container, COLORS["darkred"], (0, 0, 300, 300), border_radius=10)
+        
+        # Draw border
+        pygame.draw.rect(container, COLORS["yellow"], (0, 0, 300, 300), 4, border_radius=10)
+
         # Draw balls
         for b in self.balls:
             b.draw(container)
@@ -445,9 +461,9 @@ class MainGame:
             self._draw_prompt()
             self._draw_score()
             self._draw_feedback()
-            self._draw_transition()
+            self._draw_transition(pygame.Rect(0, 0, self.screen_width, self.screen_height))
         else:
-            self._draw_overlay()
+            # self._draw_overlay()
             self._draw_final_score()
             # self._restart_button_rect = self._draw_restart_button()
             self._restart_button_rect = self._draw_next_level_button()
@@ -486,19 +502,21 @@ class MainGame:
                 COLORS["green"] if self.state.answer_is_correct else COLORS["red"]
             )
 
-    def _draw_transition(self):
+    def _draw_transition(self, rect: pygame.Rect):
         if self.state.transition_progress < 1:
             alpha = int(self._interpolate(0, 255, self.state.transition_progress))
-            overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+            # overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+            overlay = pygame.Surface(rect.size, pygame.SRCALPHA)
+            print(overlay.get_size())
             overlay.fill((*COLORS["lightgray"][:3], alpha))
-            self.screen.blit(overlay, (0, 0))
+            # self.screen.blit(overlay, (0, 0))
+            self.screen.blit(overlay, rect.topleft)
 
-    def _draw_overlay(self):
-        overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
-        radius = self._interpolate(0, math.hypot(*SCREEN_SIZE), self.state.transition_progress)
-        pygame.draw.circle(overlay, COLORS["overlay"], 
-                         (SCREEN_SIZE[0]//2, SCREEN_SIZE[1]//2), int(radius))
-        self.screen.blit(overlay, (0, 0))
+    # def _draw_overlay(self):
+    #     overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+    #     radius = self._interpolate(0, math.hypot(*SCREEN_SIZE), self.state.transition_progress)
+    #     pygame.draw.circle(overlay, COLORS["overlay"], (SCREEN_SIZE[0]//2, SCREEN_SIZE[1]//2), int(radius))
+    #     self.screen.blit(overlay, (0, 0))
 
     def _draw_final_score(self):
         text = self.normal_font.render(f"Final Score: {self.state.score}", True, COLORS["white"])
@@ -553,7 +571,7 @@ class MainGame:
                 print(f"Error playing music {music_file}: {e}")
 
     def run_options(self):
-        """Handles the words mode loop."""
+        """Options screen place holder"""
         self.play_music(self.options_music)
 
         # Prompt text lower left corner
